@@ -2,9 +2,13 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain, SequentialChain
 from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models.llms import LLM
-from typing import Any, List, Mapping, Optional
+from typing import Any, List, Optional
 import json
 import random
+
+# Color codes for console output
+GREEN = "\033[92m"
+RESET = "\033[0m"
 
 # Mock LLM
 class MockLLM(LLM):
@@ -19,24 +23,33 @@ class MockLLM(LLM):
         **kwargs: Any,
     ) -> str:
         if "user stories" in prompt.lower():
+            features = [
+                "browse books by genre", "read book previews", "purchase books online",
+                "track shipments", "review books", "get personalized recommendations",
+                "manage my profile", "view order history", "receive promotional offers",
+                "contact customer support"
+            ]
             return json.dumps([
-                {"id": "US-001", "story": "As a customer, I want to browse books by category so I can find books easily.", "priority": "High", "story_points": 5},
-                {"id": "US-002", "story": "As a customer, I want to purchase books online so I can pay securely.", "priority": "High", "story_points": 8}
+                {"id": f"US-{i:03d}", "story": f"As a customer, I want to {feature} so I can manage my bookstore experience effectively.", "priority": "High", "story_points": random.randint(1, 8)}
+                for i, feature in enumerate(features, start=1)
             ])
         elif "criteria" in prompt.lower():
-            return json.dumps({"US-001": ["Genre filters", "Search <2s"], "US-002": ["Secure gateway", "Card support"]})
+            return json.dumps({
+                f"US-{i:03d}": [f"Criteria 1 for story {i}", f"Criteria 2 for story {i}"]
+                for i in range(1, 11)
+            })
         elif "tasks" in prompt.lower():
             tasks = []
-            for story_id in ["US-001", "US-002"]:
+            for story_id in [f"US-{i:03d}" for i in range(1, 11)]:
                 role_tasks = {
-                    "UIUXDesigner": f"Design {'browsing UI' if story_id == 'US-001' else 'checkout UI'}",
-                    "SolutionArchitect": f"Define {'catalog API' if story_id == 'US-001' else 'payment API'}",
-                    "Developer": f"Code {'browsing feature' if story_id == 'US-001' else 'payment integration'}",
-                    "QAEngineer": f"Test {'browsing functionality' if story_id == 'US-001' else 'payment security'}",
-                    "TechnicalWriter": f"Write {'browsing guide' if story_id == 'US-001' else 'payment guide'}",
-                    "DevOpsEngineer": f"Set up {'cloud hosting' if story_id == 'US-001' else 'payment gateway'}",
-                    "SecurityEngineer": f"Secure {'catalog API' if story_id == 'US-001' else 'payment API'}",
-                    "EcommerceSpecialist": f"Optimize {'search flow' if story_id == 'US-001' else 'checkout flow'}"
+                    "UIUXDesigner": f"Design UI for story {story_id}",
+                    "SolutionArchitect": f"Define architecture for story {story_id}",
+                    "Developer": f"Code feature for story {story_id}",
+                    "QAEngineer": f"Test feature for story {story_id}",
+                    "TechnicalWriter": f"Write guide for story {story_id}",
+                    "DevOpsEngineer": f"Set up infrastructure for story {story_id}",
+                    "SecurityEngineer": f"Secure feature for story {story_id}",
+                    "EcommerceSpecialist": f"Optimize e-commerce for story {story_id}"
                 }
                 task_id = len(tasks) + 1
                 for role, desc in role_tasks.items():
@@ -83,6 +96,101 @@ overall_chain = SequentialChain(
     output_variables=["user_stories", "criteria", "sprint_tasks"]
 )
 
+# Function to calculate and print role efforts
+def calculate_role_efforts(user_stories):
+    num_stories = len(user_stories)
+    total_points = sum(story["story_points"] for story in user_stories)
+    
+    # Product Owner
+    total_features = num_stories
+    productivity_po = 3  # features per week
+    duration_po = total_features / productivity_po
+    print(f"{GREEN}Product Owner Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Features / Productivity = Total Duration")
+    print(f"- {total_features} features / {productivity_po} features per week = {duration_po:.2f} weeks")
+    
+    # UI/UX Designer
+    total_screens = 3 * num_stories
+    productivity_ui = 3  # screens per week
+    duration_ui = total_screens / productivity_ui
+    print(f"{GREEN}UI/UX Designer Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Screens / Productivity = Total Duration")
+    print(f"- {total_screens} screens / {productivity_ui} screens per week = {duration_ui:.2f} weeks")
+    
+    # Solution Architect
+    total_components = 2 * num_stories
+    productivity_arch = 1  # components per week
+    duration_arch = total_components / productivity_arch
+    print(f"{GREEN}Solution Architect Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Components / Productivity = Total Duration")
+    print(f"- {total_components} components / {productivity_arch} component per week = {duration_arch:.2f} weeks")
+    
+    # Developer
+    total_sloc = total_points * 100
+    productivity_dev = 500  # SLOC per week
+    duration_dev = total_sloc / productivity_dev
+    print(f"{GREEN}Developer Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total SLOC / Productivity = Total Duration")
+    print(f"- {total_sloc} SLOC / {productivity_dev} SLOC per week = {duration_dev:.2f} weeks")
+    
+    # QA Engineer
+    total_test_cases = 5 * num_stories
+    productivity_qa = 5  # test cases per day
+    duration_qa = total_test_cases / productivity_qa
+    print(f"{GREEN}QA Engineer Estimate:{RESET}")
+    print(f"Estimated Days Required:")
+    print(f"- Total Test Cases / Productivity = Total Duration")
+    print(f"- {total_test_cases} test cases / {productivity_qa} test cases per day = {duration_qa:.2f} days")
+    
+    # Technical Writer
+    total_pages = 4 * num_stories
+    productivity_tw = 4  # pages per week
+    duration_tw = total_pages / productivity_tw
+    print(f"{GREEN}Technical Writer Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Pages / Productivity = Total Duration")
+    print(f"- {total_pages} pages / {productivity_tw} pages per week = {duration_tw:.2f} weeks")
+    
+    # DevOps Engineer
+    total_tasks_devops = 2 * num_stories
+    productivity_devops = 2  # tasks per week
+    duration_devops = total_tasks_devops / productivity_devops
+    print(f"{GREEN}DevOps Engineer Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Tasks / Productivity = Total Duration")
+    print(f"- {total_tasks_devops} tasks / {productivity_devops} tasks per week = {duration_devops:.2f} weeks")
+    
+    # Security Engineer
+    total_security_tasks = 1 * num_stories
+    productivity_sec = 1  # tasks per week
+    duration_sec = total_security_tasks / productivity_sec
+    print(f"{GREEN}Security Engineer Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Security Tasks / Productivity = Total Duration")
+    print(f"- {total_security_tasks} tasks / {productivity_sec} task per week = {duration_sec:.2f} weeks")
+    
+    # E-commerce Specialist
+    total_areas = 3 * num_stories
+    productivity_ecom = 2  # areas per week
+    duration_ecom = total_areas / productivity_ecom
+    print(f"{GREEN}E-commerce Specialist Estimate:{RESET}")
+    print(f"Estimated Weeks Required:")
+    print(f"- Total Areas / Productivity = Total Duration")
+    print(f"- {total_areas} areas / {productivity_ecom} areas per week = {duration_ecom:.2f} weeks")
+    
+    # Scrum Master
+    total_ceremonies = 4
+    productivity_sm = 1  # ceremony per day
+    duration_sm = total_ceremonies / productivity_sm
+    print(f"{GREEN}Scrum Master Estimate:{RESET}")
+    print(f"Estimated Days Required:")
+    print(f"- Total Ceremonies / Productivity = Total Duration")
+    print(f"- {total_ceremonies} ceremonies / {productivity_sm} ceremony per day = {duration_sm:.2f} days")
+
 # Simulate Scrum plan and print output directly
 def simulate_scrum_plan(customer_request):
     print("=== Experiment 3: LangChain Scrum Plan ===")
@@ -96,7 +204,10 @@ def simulate_scrum_plan(customer_request):
     for story in user_stories:
         story["acceptance_criteria"] = criteria.get(story["id"], [])
     
-    print("User Stories:")
+    # Calculate and print role efforts
+    calculate_role_efforts(user_stories)
+    
+    print("\nUser Stories:")
     for story in user_stories:
         print(f"- {story['id']}: {story['story']}")
         print(f"  Priority: {story['priority']}")
