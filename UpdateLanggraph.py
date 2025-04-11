@@ -1,3 +1,21 @@
+"""
+Book Store Project Simulation using LangChain
+
+Required packages:
+pip install langchain langchain_openai graphviz matplotlib networkx
+
+Note: 
+1. You need to install Graphviz software for the flowchart feature:
+   - macOS: brew install graphviz
+   - Ubuntu/Debian: sudo apt-get install graphviz 
+   - Windows: Download from https://graphviz.org/download/
+
+2. Set your OpenAI API key before running:
+   export OPENAI_API_KEY='your-key'
+   
+   Or update the api_key variable in this file.
+"""
+
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from typing import List, Dict, Any
@@ -10,7 +28,17 @@ try:
     HAS_GRAPHVIZ = True
 except ImportError:
     HAS_GRAPHVIZ = False
-    print("Note: Graphviz module not found. Will use ASCII chart instead.")
+    print("Note: Graphviz module not found. Will try matplotlib or fallback to ASCII chart.")
+
+# Try to import matplotlib and networkx as alternative
+try:
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+    if not HAS_GRAPHVIZ:
+        print("Note: Neither Graphviz nor Matplotlib/NetworkX available. Will use ASCII chart.")
 
 # ANSI escape code for formatting
 GREEN = "\033[92;1m"
@@ -268,65 +296,141 @@ def generate_workflow_flowchart():
     """
     print(f"\n{GREEN}Generating Agent Workflow Flowchart...{RESET}")
     
-    # If graphviz is not available, show ASCII chart
-    if not HAS_GRAPHVIZ:
-        print_ascii_workflow()
-        return
-    
-    try:
-        # Create a new directed graph
-        dot = Digraph(comment='Book Store Project Agent Workflow')
-        
-        # Customize the graph appearance
-        dot.attr('graph', rankdir='TB', size='8,5', ratio='fill', fontsize='16')
-        dot.attr('node', shape='box', style='filled', fillcolor='lightblue', fontname='Arial', fontsize='12')
-        dot.attr('edge', fontname='Arial', fontsize='10', fontcolor='#333333')
-        
-        # Add nodes (agents)
-        dot.node('Customer', 'Customer', fillcolor='#FFCCCB')
-        dot.node('Product_Owner', 'Product Owner', fillcolor='#ADD8E6')
-        dot.node('Scrum_Master', 'Scrum Master', fillcolor='#90EE90')
-        dot.node('UI_UX_Designer', 'UI/UX Designer', fillcolor='#FFFACD')
-        dot.node('Solution_Architect', 'Solution Architect', fillcolor='#D8BFD8')
-        dot.node('Developer', 'Developer', fillcolor='#FFE4B5')
-        dot.node('QA_Engineer', 'QA Engineer', fillcolor='#E6E6FA')
-        dot.node('Technical_Writer', 'Technical Writer', fillcolor='#F0FFF0')
-        
-        # Add edges (interaction flow)
-        dot.edge('Customer', 'Product_Owner', label='Requirements')
-        dot.edge('Product_Owner', 'Scrum_Master', label='Project\nRequirements')
-        dot.edge('Scrum_Master', 'UI_UX_Designer', label='Define User\nStories')
-        dot.edge('UI_UX_Designer', 'Scrum_Master', label='User Stories\n& Estimates')
-        dot.edge('Scrum_Master', 'Solution_Architect', label='Design\nArchitecture')
-        dot.edge('Solution_Architect', 'Scrum_Master', label='Architecture\n& Estimates')
-        dot.edge('Scrum_Master', 'Developer', label='Implement\nFeatures')
-        dot.edge('Developer', 'Scrum_Master', label='Implementation\n& Estimates')
-        dot.edge('Scrum_Master', 'QA_Engineer', label='Test\nImplementation')
-        dot.edge('QA_Engineer', 'Scrum_Master', label='Testing\n& Estimates')
-        dot.edge('Scrum_Master', 'Technical_Writer', label='Create\nDocumentation')
-        dot.edge('Technical_Writer', 'Scrum_Master', label='Documentation\n& Estimates')
-        
-        # Save flowchart to a file
-        flowchart_filename = 'book_store_workflow'
+    # Try graphviz first if available
+    if HAS_GRAPHVIZ:
         try:
-            dot.render(flowchart_filename, format='png', view=False)
-            print(f"\n{GREEN}Flowchart generated as '{flowchart_filename}.png'{RESET}")
-            print(f"{GREEN}You can view it in the same directory as this script.{RESET}")
-        except Exception as render_error:
-            print(f"\n{GREEN}Could not render flowchart: {render_error}{RESET}")
-            print(f"\n{GREEN}Trying to save just the DOT file...{RESET}")
+            # Create a new directed graph
+            dot = Digraph(comment='Book Store Project Agent Workflow')
+            
+            # Customize the graph appearance
+            dot.attr('graph', rankdir='TB', size='8,5', ratio='fill', fontsize='16')
+            dot.attr('node', shape='box', style='filled', fillcolor='lightblue', fontname='Arial', fontsize='12')
+            dot.attr('edge', fontname='Arial', fontsize='10', fontcolor='#333333')
+            
+            # Add nodes (agents)
+            dot.node('Customer', 'Customer', fillcolor='#FFCCCB')
+            dot.node('Product_Owner', 'Product Owner', fillcolor='#ADD8E6')
+            dot.node('Scrum_Master', 'Scrum Master', fillcolor='#90EE90')
+            dot.node('UI_UX_Designer', 'UI/UX Designer', fillcolor='#FFFACD')
+            dot.node('Solution_Architect', 'Solution Architect', fillcolor='#D8BFD8')
+            dot.node('Developer', 'Developer', fillcolor='#FFE4B5')
+            dot.node('QA_Engineer', 'QA Engineer', fillcolor='#E6E6FA')
+            dot.node('Technical_Writer', 'Technical Writer', fillcolor='#F0FFF0')
+            
+            # Add edges (interaction flow)
+            dot.edge('Customer', 'Product_Owner', label='Requirements')
+            dot.edge('Product_Owner', 'Scrum_Master', label='Project\nRequirements')
+            dot.edge('Scrum_Master', 'UI_UX_Designer', label='Define User\nStories')
+            dot.edge('UI_UX_Designer', 'Scrum_Master', label='User Stories\n& Estimates')
+            dot.edge('Scrum_Master', 'Solution_Architect', label='Design\nArchitecture')
+            dot.edge('Solution_Architect', 'Scrum_Master', label='Architecture\n& Estimates')
+            dot.edge('Scrum_Master', 'Developer', label='Implement\nFeatures')
+            dot.edge('Developer', 'Scrum_Master', label='Implementation\n& Estimates')
+            dot.edge('Scrum_Master', 'QA_Engineer', label='Test\nImplementation')
+            dot.edge('QA_Engineer', 'Scrum_Master', label='Testing\n& Estimates')
+            dot.edge('Scrum_Master', 'Technical_Writer', label='Create\nDocumentation')
+            dot.edge('Technical_Writer', 'Scrum_Master', label='Documentation\n& Estimates')
+            
+            # Save flowchart to a file
+            flowchart_filename = 'book_store_workflow'
             try:
-                with open(f"{flowchart_filename}.dot", "w") as f:
-                    f.write(dot.source)
-                print(f"{GREEN}DOT file saved to '{flowchart_filename}.dot'{RESET}")
-                print(f"{GREEN}You can render it using: dot -Tpng {flowchart_filename}.dot -o {flowchart_filename}.png{RESET}")
-            except Exception as write_error:
-                print(f"{GREEN}Could not save DOT file: {write_error}{RESET}")
-                print_ascii_workflow()
-        
-    except Exception as e:
-        print(f"\n{GREEN}Could not generate flowchart: {e}{RESET}")
-        print_ascii_workflow()
+                dot.render(flowchart_filename, format='png', view=False)
+                print(f"\n{GREEN}Flowchart generated as '{flowchart_filename}.png'{RESET}")
+                print(f"{GREEN}You can view it in the same directory as this script.{RESET}")
+                return True
+            except Exception as render_error:
+                print(f"\n{GREEN}Could not render Graphviz flowchart: {render_error}{RESET}")
+                print(f"\n{GREEN}Trying to save just the DOT file...{RESET}")
+                try:
+                    with open(f"{flowchart_filename}.dot", "w") as f:
+                        f.write(dot.source)
+                    print(f"{GREEN}DOT file saved to '{flowchart_filename}.dot'{RESET}")
+                    print(f"{GREEN}You can render it using: dot -Tpng {flowchart_filename}.dot -o {flowchart_filename}.png{RESET}")
+                    return True
+                except Exception as write_error:
+                    print(f"{GREEN}Could not save DOT file: {write_error}{RESET}")
+        except Exception as e:
+            print(f"\n{GREEN}Error with Graphviz: {e}{RESET}")
+            print(f"\n{GREEN}Trying alternative flowchart method...{RESET}")
+    
+    # Try matplotlib/networkx as an alternative
+    if HAS_MATPLOTLIB:
+        try:
+            # Create a directed graph
+            G = nx.DiGraph()
+            
+            # Add nodes (agents)
+            roles = {
+                'Customer': {'color': '#FFCCCB', 'pos': (0, 6)},
+                'Product Owner': {'color': '#ADD8E6', 'pos': (0, 5)},
+                'Scrum Master': {'color': '#90EE90', 'pos': (0, 4)},
+                'UI/UX Designer': {'color': '#FFFACD', 'pos': (2, 3)},
+                'Solution Architect': {'color': '#D8BFD8', 'pos': (2, 2)},
+                'Developer': {'color': '#FFE4B5', 'pos': (2, 1)},
+                'QA Engineer': {'color': '#E6E6FA', 'pos': (2, 0)},
+                'Technical Writer': {'color': '#F0FFF0', 'pos': (2, -1)}
+            }
+            
+            # Add nodes
+            for role, attrs in roles.items():
+                G.add_node(role, color=attrs['color'], pos=attrs['pos'])
+            
+            # Add edges with labels
+            edges = [
+                ('Customer', 'Product Owner', {'label': 'Requirements'}),
+                ('Product Owner', 'Scrum Master', {'label': 'Project Requirements'}),
+                ('Scrum Master', 'UI/UX Designer', {'label': 'Define User Stories'}),
+                ('UI/UX Designer', 'Scrum Master', {'label': 'User Stories & Estimates'}),
+                ('Scrum Master', 'Solution Architect', {'label': 'Design Architecture'}),
+                ('Solution Architect', 'Scrum Master', {'label': 'Architecture & Estimates'}),
+                ('Scrum Master', 'Developer', {'label': 'Implement Features'}),
+                ('Developer', 'Scrum Master', {'label': 'Implementation & Estimates'}),
+                ('Scrum Master', 'QA Engineer', {'label': 'Test Implementation'}),
+                ('QA Engineer', 'Scrum Master', {'label': 'Testing & Estimates'}),
+                ('Scrum Master', 'Technical Writer', {'label': 'Create Documentation'}),
+                ('Technical Writer', 'Scrum Master', {'label': 'Documentation & Estimates'})
+            ]
+            
+            G.add_edges_from((u, v, d) for u, v, d in edges)
+            
+            # Set up the plot
+            plt.figure(figsize=(12, 10))
+            pos = nx.get_node_attributes(G, 'pos')
+            
+            # Draw nodes
+            node_colors = [data['color'] for node, data in G.nodes(data=True)]
+            nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=3000, alpha=0.8)
+            
+            # Draw edges
+            nx.draw_networkx_edges(G, pos, width=2, alpha=0.7, edge_color='gray', 
+                                  connectionstyle='arc3,rad=0.1', arrowsize=20)
+            
+            # Draw node labels
+            nx.draw_networkx_labels(G, pos, font_size=10, font_family='sans-serif')
+            
+            # Draw edge labels
+            edge_labels = {(u, v): d['label'] for u, v, d in G.edges(data=True)}
+            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+            
+            # Set title
+            plt.title('Book Store Project Workflow', size=15)
+            plt.axis('off')
+            
+            # Save the figure
+            flowchart_filename = 'book_store_workflow_matplotlib.png'
+            plt.savefig(flowchart_filename, format='png', dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            print(f"\n{GREEN}Matplotlib flowchart generated as '{flowchart_filename}'{RESET}")
+            print(f"{GREEN}You can view it in the same directory as this script.{RESET}")
+            return True
+            
+        except Exception as e:
+            print(f"\n{GREEN}Error with Matplotlib/NetworkX: {e}{RESET}")
+    
+    # If we reached here, neither method worked
+    print_ascii_workflow()
+    return False
 
 def print_ascii_workflow():
     """Print a text-based ASCII workflow diagram"""
