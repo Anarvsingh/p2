@@ -74,7 +74,7 @@ class Agent:
         print(f"\n{BLUE_BOLD}[{recipient.name}]{RESET}: {recipient_response}")
         return recipient_response
 
-# Create all agents with the same system messages from the original code
+# Create all agents with the same system messages 
 product_owner_agent = Agent(
     name="Product_Owner",
     system_message="""Represents the customer's needs, manages the product backlog, and prioritizes features for the book store platform.
@@ -186,7 +186,7 @@ bookstore_agents = [
     bookstore_specialist_agent
 ]
 
-# Define the same message templates as in the original code
+# Define the same message templates 
 product_owner_message = (
     "I want to build a web-based mobile app for our bookstore where customers can browse books by genre, read previews, "
     "purchase books online, track their shipments, review books, and get personalized reading recommendations. "
@@ -321,7 +321,7 @@ manager_scrum = GroupChatManager(groupchat=groupchat_scrum)
 # Define the initial customer message
 customer_message = """I want to build a web-based mobile app for our bookstore where customers can browse books by genre, read previews, purchase books online, track their shipments, review books, and get personalized reading recommendations."""
 
-# Run the simulation like in the original code
+# Run the simulation 
 def run_simulation():
     print(f"\n{GREEN}Running Book Store Project Simulation with LangChain{RESET}")
     
