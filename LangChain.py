@@ -1,231 +1,388 @@
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain, SequentialChain
-from langchain.callbacks.manager import CallbackManagerForLLMRun
-from langchain_core.language_models.llms import LLM
-from typing import Any, List, Optional
-import json
-import random
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from typing import List, Dict, Tuple, Any
+import os
+import time
 
-# Color codes for console output
-GREEN = "\033[92m"
+# ANSI escape code for formatting
+GREEN = "\033[92;1m"
+BLUE_BOLD = "\033[94;1m"
 RESET = "\033[0m"
 
-# Mock LLM
-class MockLLM(LLM):
-    def _llm_type(self) -> str:
-        return "mock"
-    
-    def _call(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> str:
-        if "user stories" in prompt.lower():
-            features = [
-                "browse books by genre", "read book previews", "purchase books online",
-                "track shipments", "review books", "get personalized recommendations",
-                "manage my profile", "view order history", "receive promotional offers",
-                "contact customer support"
-            ]
-            return json.dumps([
-                {"id": f"US-{i:03d}", "story": f"As a customer, I want to {feature} so I can manage my bookstore experience effectively.", "priority": "High", "story_points": random.randint(1, 8)}
-                for i, feature in enumerate(features, start=1)
-            ])
-        elif "criteria" in prompt.lower():
-            return json.dumps({
-                f"US-{i:03d}": [f"Criteria 1 for story {i}", f"Criteria 2 for story {i}"]
-                for i in range(1, 11)
-            })
-        elif "tasks" in prompt.lower():
-            tasks = []
-            for story_id in [f"US-{i:03d}" for i in range(1, 11)]:
-                role_tasks = {
-                    "UIUXDesigner": f"Design UI for story {story_id}",
-                    "SolutionArchitect": f"Define architecture for story {story_id}",
-                    "Developer": f"Code feature for story {story_id}",
-                    "QAEngineer": f"Test feature for story {story_id}",
-                    "TechnicalWriter": f"Write guide for story {story_id}",
-                    "DevOpsEngineer": f"Set up infrastructure for story {story_id}",
-                    "SecurityEngineer": f"Secure feature for story {story_id}",
-                    "EcommerceSpecialist": f"Optimize e-commerce for story {story_id}"
-                }
-                task_id = len(tasks) + 1
-                for role, desc in role_tasks.items():
-                    effort = random.randint(1, 4) if role == "TechnicalWriter" else random.randint(3, 8) if role in ["UIUXDesigner", "DevOpsEngineer"] else random.randint(4, 10)
-                    tasks.append({
-                        "task_id": f"SPRINT1-TASK-{task_id:03d}",
-                        "story_id": story_id,
-                        "description": desc,
-                        "role": role,
-                        "effort_hours": effort
-                    })
-                    task_id += 1
-            tasks.append({
-                "task_id": f"SPRINT1-TASK-{task_id:03d}",
-                "story_id": "N/A",
-                "description": "Plan Sprint 1 tasks",
-                "role": "ScrumMaster",
-                "effort_hours": random.randint(2, 4)
-            })
-            return json.dumps(tasks)
-        return "[]"
+# Initialize the LLM
+model_name = "gpt-4o-mini"
+api_key = ""  # Your API key
 
-llm = MockLLM()
+# Set environment variable
+os.environ["OPENAI_API_KEY"] = api_key
 
-# Define chains
-story_chain = LLMChain(
-    llm=llm,
-    prompt=PromptTemplate(input_variables=["request"], template="Generate Scrum user stories for: {request}"),
-    output_key="user_stories"
-)
-criteria_chain = LLMChain(
-    llm=llm,
-    prompt=PromptTemplate(input_variables=["user_stories"], template="Add acceptance criteria to: {user_stories}"),
-    output_key="criteria"
-)
-task_chain = LLMChain(
-    llm=llm,
-    prompt=PromptTemplate(input_variables=["user_stories"], template="Generate Sprint 1 tasks for all roles: {user_stories}"),
-    output_key="sprint_tasks"
-)
-overall_chain = SequentialChain(
-    chains=[story_chain, criteria_chain, task_chain],
-    input_variables=["request"],
-    output_variables=["user_stories", "criteria", "sprint_tasks"]
+
+# Initialize the LLM
+llm = ChatOpenAI(
+    model=model_name,
+    temperature=0,
+    api_key=api_key
 )
 
-# Function to calculate and print role efforts
-def calculate_role_efforts(user_stories):
-    num_stories = len(user_stories)
-    total_points = sum(story["story_points"] for story in user_stories)
+class Agent:
+    def __init__(self, name: str, system_message: str):
+        self.name = name
+        self.system_message = system_message
+        self.memory = []  # Store conversation history
     
-    # Product Owner
-    total_features = num_stories
-    productivity_po = 3  # features per week
-    duration_po = total_features / productivity_po
-    print(f"{GREEN}Product Owner Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Features / Productivity = Total Duration")
-    print(f"- {total_features} features / {productivity_po} features per week = {duration_po:.2f} weeks")
+    def send_message(self, message: str, sender_name: str = "Human"):
+        """Add a message to this agent's memory and get a response"""
+        # Create conversation history
+        messages = [SystemMessage(content=self.system_message)]
+        
+        # Add conversation history
+        for msg in self.memory:
+            if msg["role"] == "human":
+                messages.append(HumanMessage(content=f"{msg['sender']}: {msg['content']}"))
+            else:  # AI message
+                messages.append(AIMessage(content=msg["content"]))
+        
+        # Add the new message
+        messages.append(HumanMessage(content=f"{sender_name}: {message}"))
+        
+        # Get response from LLM
+        response = llm(messages)
+        
+        # Store the exchange in memory
+        self.memory.append({"role": "human", "sender": sender_name, "content": message})
+        self.memory.append({"role": "ai", "content": response.content})
+        
+        return response.content
     
-    # UI/UX Designer
-    total_screens = 3 * num_stories
-    productivity_ui = 3  # screens per week
-    duration_ui = total_screens / productivity_ui
-    print(f"{GREEN}UI/UX Designer Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Screens / Productivity = Total Duration")
-    print(f"- {total_screens} screens / {productivity_ui} screens per week = {duration_ui:.2f} weeks")
-    
-    # Solution Architect
-    total_components = 2 * num_stories
-    productivity_arch = 1  # components per week
-    duration_arch = total_components / productivity_arch
-    print(f"{GREEN}Solution Architect Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Components / Productivity = Total Duration")
-    print(f"- {total_components} components / {productivity_arch} component per week = {duration_arch:.2f} weeks")
-    
-    # Developer
-    total_sloc = total_points * 100
-    productivity_dev = 500  # SLOC per week
-    duration_dev = total_sloc / productivity_dev
-    print(f"{GREEN}Developer Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total SLOC / Productivity = Total Duration")
-    print(f"- {total_sloc} SLOC / {productivity_dev} SLOC per week = {duration_dev:.2f} weeks")
-    
-    # QA Engineer
-    total_test_cases = 5 * num_stories
-    productivity_qa = 5  # test cases per day
-    duration_qa = total_test_cases / productivity_qa
-    print(f"{GREEN}QA Engineer Estimate:{RESET}")
-    print(f"Estimated Days Required:")
-    print(f"- Total Test Cases / Productivity = Total Duration")
-    print(f"- {total_test_cases} test cases / {productivity_qa} test cases per day = {duration_qa:.2f} days")
-    
-    # Technical Writer
-    total_pages = 4 * num_stories
-    productivity_tw = 4  # pages per week
-    duration_tw = total_pages / productivity_tw
-    print(f"{GREEN}Technical Writer Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Pages / Productivity = Total Duration")
-    print(f"- {total_pages} pages / {productivity_tw} pages per week = {duration_tw:.2f} weeks")
-    
-    # DevOps Engineer
-    total_tasks_devops = 2 * num_stories
-    productivity_devops = 2  # tasks per week
-    duration_devops = total_tasks_devops / productivity_devops
-    print(f"{GREEN}DevOps Engineer Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Tasks / Productivity = Total Duration")
-    print(f"- {total_tasks_devops} tasks / {productivity_devops} tasks per week = {duration_devops:.2f} weeks")
-    
-    # Security Engineer
-    total_security_tasks = 1 * num_stories
-    productivity_sec = 1  # tasks per week
-    duration_sec = total_security_tasks / productivity_sec
-    print(f"{GREEN}Security Engineer Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Security Tasks / Productivity = Total Duration")
-    print(f"- {total_security_tasks} tasks / {productivity_sec} task per week = {duration_sec:.2f} weeks")
-    
-    # E-commerce Specialist
-    total_areas = 3 * num_stories
-    productivity_ecom = 2  # areas per week
-    duration_ecom = total_areas / productivity_ecom
-    print(f"{GREEN}E-commerce Specialist Estimate:{RESET}")
-    print(f"Estimated Weeks Required:")
-    print(f"- Total Areas / Productivity = Total Duration")
-    print(f"- {total_areas} areas / {productivity_ecom} areas per week = {duration_ecom:.2f} weeks")
-    
-    # Scrum Master
-    total_ceremonies = 4
-    productivity_sm = 1  # ceremony per day
-    duration_sm = total_ceremonies / productivity_sm
-    print(f"{GREEN}Scrum Master Estimate:{RESET}")
-    print(f"Estimated Days Required:")
-    print(f"- Total Ceremonies / Productivity = Total Duration")
-    print(f"- {total_ceremonies} ceremonies / {productivity_sm} ceremony per day = {duration_sm:.2f} days")
+    def initiate_chat(self, recipient, message: str):
+        """Start a conversation with another agent"""
+        print(f"\n{BLUE_BOLD}[{self.name}]{RESET} to {BLUE_BOLD}[{recipient.name}]{RESET}: {message}")
+        recipient_response = recipient.send_message(message, self.name)
+        print(f"\n{BLUE_BOLD}[{recipient.name}]{RESET}: {recipient_response}")
+        return recipient_response
 
-# Simulate Scrum plan and print output directly
-def simulate_scrum_plan(customer_request):
-    print("=== Experiment 3: LangChain Scrum Plan ===")
-    print(f"Generating Scrum Plan for: {customer_request}\n")
-    
-    result = overall_chain({"request": customer_request})
-    user_stories = json.loads(result["user_stories"])
-    criteria = json.loads(result["criteria"])
-    sprint_tasks = json.loads(result["sprint_tasks"])
-    
-    for story in user_stories:
-        story["acceptance_criteria"] = criteria.get(story["id"], [])
-    
-    # Calculate and print role efforts
-    calculate_role_efforts(user_stories)
-    
-    print("\nUser Stories:")
-    for story in user_stories:
-        print(f"- {story['id']}: {story['story']}")
-        print(f"  Priority: {story['priority']}")
-        print(f"  Story Points: {story['story_points']}")
-        print("  Acceptance Criteria:")
-        for crit in story["acceptance_criteria"]:
-            print(f"    * {crit}")
-    
-    print("\nSprint 1 Tasks:")
-    for task in sprint_tasks:
-        print(f"- {task['task_id']}: {task['description']}")
-        print(f"  Story ID: {task['story_id']}")
-        print(f"  Role: {task['role']}")
-        print(f"  Effort: {task['effort_hours']} hours")
-    
-    print(f"\nSummary: {len(user_stories)} User Stories, {len(sprint_tasks)} Tasks for Sprint 1")
-    return user_stories, sprint_tasks
+# Create all agents with the same system messages from the original code
+product_owner_agent = Agent(
+    name="Product_Owner",
+    system_message="""Represents the customer's needs, manages the product backlog, and prioritizes features for the book store platform.
+                      Example tasks include defining shopping cart features, payment integrations, and user profile enhancements.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required:
+                      - Total Features / Productivity = Total Duration
+                      - e.g., 6 features / 3 features per week = 2 weeks
+                    """
+)
 
-# Run experiment
-customer_request = "Create a web-based mobile app for a bookstore where customers can browse and purchase books, pay online, track orders, leave reviews, and get recommendations."
-simulate_scrum_plan(customer_request)
+scrum_master_agent = Agent(
+    name="Scrum_Master",
+    system_message="""Facilitates Scrum ceremonies, removes obstacles, and ensures team adherence to Agile principles for the book store platform.
+                      Supports daily stand-ups, sprint planning, and retrospectives.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Days Required**:
+                      - Total Ceremonies / Productivity = Total Duration
+                      - e.g., 4 ceremonies / 1 ceremony per day = 4 days
+                    """
+)
+
+ui_ux_designer_agent = Agent(
+    name="UI_UX_Designer",
+    system_message="""Designs user interfaces and experiences for the book store platform.
+                      Tasks include wireframes, prototypes, and mobile interfaces.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total Screens / Productivity = Total Duration
+                      - e.g., 9 screens / 3 screens per week = 3 weeks
+                    """
+)
+
+solution_architect_agent = Agent(
+    name="Solution_Architect",
+    system_message="""Designs the system architecture for the book store platform including microservices and integrations.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total Components / Productivity = Total Duration
+                      - e.g., 4 components / 1 per week = 4 weeks
+                    """
+)
+
+developer_agent = Agent(
+    name="Developer",
+    system_message="""Develops features, integrates APIs, and manages frontend/backend logic for the book store platform.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total SLOC / Productivity = Total Duration
+                      - e.g., 1000 SLOC / 500 SLOC per week = 2 weeks
+                    """
+)
+
+qa_engineer_agent = Agent(
+    name="QA_Engineer",
+    system_message="""Tests features and validates functionalities for the book store platform.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Days Required**:
+                      - Total Test Cases / Productivity = Total Duration
+                      - e.g., 25 test cases / 5 per day = 5 days
+                    """
+)
+
+technical_writer_agent = Agent(
+    name="Technical_Writer",
+    system_message="""Writes user guides, API docs, and release notes for the book store platform.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total Pages / Productivity = Total Duration
+                      - e.g., 8 pages / 4 pages per week = 2 weeks
+                    """
+)
+
+devops_engineer_agent = Agent(
+    name="DevOps_Engineer",
+    system_message="""Handles CI/CD, infrastructure, and deployment automation for the book store platform.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total Tasks / Productivity = Total Duration
+                      - e.g., 6 tasks / 2 tasks per week = 3 weeks
+                    """
+)
+
+security_engineer_agent = Agent(
+    name="Security_Engineer",
+    system_message="""Conducts code reviews, penetration testing, and secures sensitive data for the book store platform.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total Security Tasks / Productivity = Total Duration
+                      - e.g., 3 tasks / 1 task per week = 3 weeks
+                    """
+)
+
+bookstore_specialist_agent = Agent(
+    name="Bookstore_Specialist",
+    system_message="""Provides best practices in book cataloging, checkout UX, and promotions for the book store platform.
+                      IMPORTANT: When responding, always show your work in this format:
+                      Estimated Weeks Required**:
+                      - Total Areas / Productivity = Total Duration
+                      - e.g., 6 areas / 2 per week = 3 weeks
+                    """
+)
+
+# List of agents for easy reference
+bookstore_agents = [
+    product_owner_agent, scrum_master_agent, ui_ux_designer_agent,
+    solution_architect_agent, developer_agent, qa_engineer_agent,
+    technical_writer_agent, devops_engineer_agent, security_engineer_agent,
+    bookstore_specialist_agent
+]
+
+# Define the same message templates as in the original code
+product_owner_message = (
+    "I want to build a web-based mobile app for our bookstore where customers can browse books by genre, read previews, "
+    "purchase books online, track their shipments, review books, and get personalized reading recommendations. "
+    "Please provide your estimate including the detailed calculation steps for the refinement effort."
+)
+
+scrum_master_to_business_analyst_prompt = (
+    "I have received the customer's requirements from the Product Owner. Define user stories and acceptance criteria for the project. "
+    "Organize at least 10 user stories, each with a unique ID (e.g., US-01, US-02). "
+    "Provide work and effort estimates based on the number of stories documented for this sprint. "
+    "Please show your detailed calculation steps for the estimate."
+)
+
+business_analyst_to_scrum_master_response = (
+    "I have documented the user stories with acceptance criteria, as requested. "
+    "Here are my detailed calculation steps for the effort estimates based on the number of stories documented for this sprint:"
+)
+
+scrum_master_to_architect_prompt = (
+    "The Business Analyst has completed the user stories. Design the technical architecture to support these requirements, prioritizing security, scalability, and compliance. "
+    "Include work and effort estimates based on the number of architectural components designed for this sprint. "
+    "Please show your detailed calculation steps for the estimate."
+)
+
+architect_to_scrum_master_response = (
+    "I have completed the architectural design. Here are my detailed calculation steps for the effort estimates for the design phase:"
+)
+
+scrum_master_to_developer_prompt = (
+    "The Architect has completed the design. Begin implementing the features based on the user stories and architectural components. "
+    "Estimate the number of source lines of code (SLOC) and effort required for this sprint's development. "
+    "Please show your detailed calculation steps for the estimate."
+)
+
+developer_to_scrum_master_response = (
+    "I have developed the features based on the architecture and user stories. "
+    "Here are my detailed calculation steps for the development phase effort estimates:"
+)
+
+scrum_master_to_qa_engineer_prompt = (
+    "The development phase is complete. Create and execute test cases based on user stories. "
+    "Provide work and effort estimates based on the number of test cases created and executed in this sprint. "
+    "Please show your detailed calculation steps for the estimate."
+)
+
+qa_engineer_to_scrum_master_response = (
+    "Testing is complete, and I have verified that the functionality meets the requirements. "
+    "Here are my detailed calculation steps for the testing effort estimates:"
+)
+
+scrum_master_to_technical_writer_prompt = (
+    "Testing is complete. Prepare the user documentation and training materials based on the deliverables of this sprint. "
+    "Provide work and effort estimates for documentation creation. "
+    "Please show your detailed calculation steps for the estimate."
+)
+
+technical_writer_to_scrum_master_response = (
+    "Documentation and training materials are complete. Here are my detailed calculation steps for the documentation effort estimates:"
+)
+
+# Create a list of agent pairs to define the conversation flow in Scrum
+conversation_flow_scrum = [
+    (product_owner_agent, scrum_master_agent, product_owner_message),
+    (scrum_master_agent, ui_ux_designer_agent, scrum_master_to_business_analyst_prompt),
+    (ui_ux_designer_agent, scrum_master_agent, business_analyst_to_scrum_master_response),
+    (scrum_master_agent, solution_architect_agent, scrum_master_to_architect_prompt),
+    (solution_architect_agent, scrum_master_agent, architect_to_scrum_master_response),
+    (scrum_master_agent, developer_agent, scrum_master_to_developer_prompt),
+    (developer_agent, scrum_master_agent, developer_to_scrum_master_response),
+    (scrum_master_agent, qa_engineer_agent, scrum_master_to_qa_engineer_prompt),
+    (qa_engineer_agent, scrum_master_agent, qa_engineer_to_scrum_master_response),
+    (scrum_master_agent, technical_writer_agent, scrum_master_to_technical_writer_prompt),
+    (technical_writer_agent, scrum_master_agent, technical_writer_to_scrum_master_response)
+]
+
+class GroupChat:
+    def __init__(self, agents: List[Agent]):
+        self.agents = agents
+        self.messages = []
+    
+    def add_message(self, sender_agent: Agent, message: str):
+        """Add a message to the group chat history"""
+        self.messages.append({
+            "sender": sender_agent.name,
+            "content": message
+        })
+        print(f"\n{BLUE_BOLD}[{sender_agent.name}]{RESET} to Group: {message}")
+    
+    def broadcast_message(self, sender_agent: Agent, message: str):
+        """Send a message to all agents except the sender"""
+        self.add_message(sender_agent, message)
+        responses = {}
+        
+        for agent in self.agents:
+            if agent != sender_agent:
+                # Wait briefly to avoid rate limits
+                time.sleep(1)
+                response = agent.send_message(message, sender_agent.name)
+                responses[agent.name] = response
+                print(f"\n{BLUE_BOLD}[{agent.name}]{RESET}: {response}")
+        
+        return responses
+
+class GroupChatManager:
+    def __init__(self, groupchat: GroupChat):
+        self.groupchat = groupchat
+    
+    def initiate_chat(self, agent: Agent, recipient: Agent = None, message: str = None):
+        """Start a conversation in the group chat or between specific agents"""
+        if recipient:
+            # Direct conversation between two agents
+            return agent.initiate_chat(recipient, message)
+        else:
+            # Group conversation
+            return self.groupchat.broadcast_message(agent, message)
+
+# Initialize GroupChat for Scrum simulation
+groupchat_scrum = GroupChat(
+    agents=[
+        product_owner_agent,
+        scrum_master_agent,
+        ui_ux_designer_agent,
+        solution_architect_agent,
+        developer_agent,
+        qa_engineer_agent,
+        technical_writer_agent
+    ]
+)
+
+manager_scrum = GroupChatManager(groupchat=groupchat_scrum)
+
+# Define the initial customer message
+customer_message = """I want to build a web-based mobile app for our bookstore where customers can browse books by genre, read previews, purchase books online, track their shipments, review books, and get personalized reading recommendations."""
+
+# Run the simulation like in the original code
+def run_simulation():
+    print(f"\n{GREEN}Running Book Store Project Simulation with LangChain{RESET}")
+    
+    # First, the product owner initiates a chat with the scrum master
+    print(f"\n{GREEN}Step 1: Product Owner initiates chat with Scrum Master{RESET}")
+    product_owner_agent.initiate_chat(
+        scrum_master_agent,
+        customer_message
+    )
+    
+    # The scrum master initiates a chat with the UI/UX designer (playing BA role)
+    print(f"\n{GREEN}Step 2: Scrum Master initiates chat with UI/UX Designer{RESET}")
+    scrum_master_agent.initiate_chat(
+        ui_ux_designer_agent,
+        scrum_master_to_business_analyst_prompt
+    )
+    
+    # Continue with the rest of the conversation flow
+    print(f"\n{GREEN}Step 3: UI/UX Designer responds to Scrum Master{RESET}")
+    ui_ux_designer_agent.initiate_chat(
+        scrum_master_agent,
+        business_analyst_to_scrum_master_response
+    )
+    
+    print(f"\n{GREEN}Step 4: Scrum Master discusses with Solution Architect{RESET}")
+    scrum_master_agent.initiate_chat(
+        solution_architect_agent,
+        scrum_master_to_architect_prompt
+    )
+    
+    print(f"\n{GREEN}Step 5: Solution Architect responds to Scrum Master{RESET}")
+    solution_architect_agent.initiate_chat(
+        scrum_master_agent,
+        architect_to_scrum_master_response
+    )
+    
+    print(f"\n{GREEN}Step 6: Scrum Master discusses with Developer{RESET}")
+    scrum_master_agent.initiate_chat(
+        developer_agent,
+        scrum_master_to_developer_prompt
+    )
+    
+    print(f"\n{GREEN}Step 7: Developer responds to Scrum Master{RESET}")
+    developer_agent.initiate_chat(
+        scrum_master_agent,
+        developer_to_scrum_master_response
+    )
+    
+    print(f"\n{GREEN}Step 8: Scrum Master discusses with QA Engineer{RESET}")
+    scrum_master_agent.initiate_chat(
+        qa_engineer_agent,
+        scrum_master_to_qa_engineer_prompt
+    )
+    
+    print(f"\n{GREEN}Step 9: QA Engineer responds to Scrum Master{RESET}")
+    qa_engineer_agent.initiate_chat(
+        scrum_master_agent,
+        qa_engineer_to_scrum_master_response
+    )
+    
+    print(f"\n{GREEN}Step 10: Scrum Master discusses with Technical Writer{RESET}")
+    scrum_master_agent.initiate_chat(
+        technical_writer_agent,
+        scrum_master_to_technical_writer_prompt
+    )
+    
+    print(f"\n{GREEN}Step 11: Technical Writer responds to Scrum Master{RESET}")
+    technical_writer_agent.initiate_chat(
+        scrum_master_agent,
+        technical_writer_to_scrum_master_response
+    )
+    
+    print(f"\n{GREEN}Book Store Project Simulation Complete!{RESET}")
+
+# Run the simulation
+if __name__ == "__main__":
+    run_simulation() 
