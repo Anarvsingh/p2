@@ -1,3 +1,16 @@
+"""
+Book Store Project Simulation using LangChain
+
+Required packages:
+pip install langchain langchain_openai
+
+Note: 
+1. Set your OpenAI API key before running:
+   export OPENAI_API_KEY='your-key'
+   
+   Or update the api_key variable in this file.
+"""
+
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from typing import List, Dict, Tuple, Any
@@ -156,7 +169,7 @@ security_engineer_agent = Agent(
 )
 
 bookstore_specialist_agent = Agent(
-    name="Bookstore_Specialist",
+    name="E_commerce_Specialist",
     system_message="""Provides best practices in book cataloging, checkout UX, and promotions for the book store platform.
                       IMPORTANT: When responding, always show your work in this format:
                       Estimated Weeks Required**:
@@ -180,14 +193,14 @@ product_owner_message = (
     "Please provide your estimate including the detailed calculation steps for the refinement effort."
 )
 
-scrum_master_to_business_analyst_prompt = (
+scrum_master_to_ui_ux_designer_prompt = (
     "I have received the customer's requirements from the Product Owner. Define user stories and acceptance criteria for the project. "
     "Organize at least 10 user stories, each with a unique ID (e.g., US-01, US-02). "
     "Provide work and effort estimates based on the number of stories documented for this sprint. "
     "Please show your detailed calculation steps for the estimate."
 )
 
-business_analyst_to_scrum_master_response = (
+ui_ux_designer_to_scrum_master_response = (
     "I have documented the user stories with acceptance criteria, as requested. "
     "Here are my detailed calculation steps for the effort estimates based on the number of stories documented for this sprint:"
 )
@@ -237,8 +250,8 @@ technical_writer_to_scrum_master_response = (
 # Create a list of agent pairs to define the conversation flow in Scrum
 conversation_flow_scrum = [
     (product_owner_agent, scrum_master_agent, product_owner_message),
-    (scrum_master_agent, ui_ux_designer_agent, scrum_master_to_business_analyst_prompt),
-    (ui_ux_designer_agent, scrum_master_agent, business_analyst_to_scrum_master_response),
+    (scrum_master_agent, ui_ux_designer_agent, scrum_master_to_ui_ux_designer_prompt),
+    (ui_ux_designer_agent, scrum_master_agent, ui_ux_designer_to_scrum_master_response),
     (scrum_master_agent, solution_architect_agent, scrum_master_to_architect_prompt),
     (solution_architect_agent, scrum_master_agent, architect_to_scrum_master_response),
     (scrum_master_agent, developer_agent, scrum_master_to_developer_prompt),
@@ -323,14 +336,14 @@ def run_simulation():
     print(f"\n{GREEN}Step 2: Scrum Master initiates chat with UI/UX Designer{RESET}")
     scrum_master_agent.initiate_chat(
         ui_ux_designer_agent,
-        scrum_master_to_business_analyst_prompt
+        scrum_master_to_ui_ux_designer_prompt
     )
     
     # Continue with the rest of the conversation flow
     print(f"\n{GREEN}Step 3: UI/UX Designer responds to Scrum Master{RESET}")
     ui_ux_designer_agent.initiate_chat(
         scrum_master_agent,
-        business_analyst_to_scrum_master_response
+        ui_ux_designer_to_scrum_master_response
     )
     
     print(f"\n{GREEN}Step 4: Scrum Master discusses with Solution Architect{RESET}")
